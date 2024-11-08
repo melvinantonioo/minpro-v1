@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int                @id @default(autoincrement())
+  name              String             @db.VarChar(20) //login
+  email             String             @unique      //login
+  password          String                          //login
+  role              Role                                    //role diisi , 2 tipe
+  referralCode      String             @unique                  //autogenerate
+  points            Int                @default(0)
+  referrals         Referral[]                      //register
+  orders            Order[]                                 //diisi setelah create order
+  reviews           Review[]
+  createdEvents     Event[]            @relation("CreatedEvents")
+  referralsGiven    Referral[]         @relation("UserReferralsGiven")      //status used
+  referralsReceived Referral[]         @relation("UserReferralsReceived")   //
+  pointTransactions PointTransaction[]                                      //point reff
+  transactions      Transaction[]                           //create transaction
+}
+
+//done
+
+enum Role {  //isi untuk table user
+  ATTENDEE
+  ORGANIZER
+}
+
+model Event {
+  id             Int             @id @default(autoincrement())
+  name           String          @db.VarChar(20)
+  description    String          @db.VarChar(50)
+  price          Float
+  date           DateTime     
+  time           DateTime
+  location       String
+  capacity       Int
+  availableSeats Int // Ditambahkan
+  type           EventType          //enum type free/paid
+  organizer      User            @relation("CreatedEvents", fields: [organizerId], references: [id])
+  organizerId    Int
+  tickets        Ticket[]
+  orders         Order[]
+  reviews        Review[]
+  promotions     Promotion[]
+  // Ditambahkan:
+  categories     EventCategory[]
+  transactions   Transaction[]
+}
+
+enum EventType { //type for create event
+  FREE
+  PAID
+}
+
+model Ticket {
+  id         Int         @id @default(autoincrement())
+  event      Event       @relation(fields: [eventId], references: [id])
+  eventId    Int
+  type       String
+  price      Float
+  quantity   Int
+  // Ditambahkan:
+  orderItems OrderItem[]
+}
+
+model Order {
+  id          Int           @id @default(autoincrement())
+  user        User          @relation(fields: [userId], references: [id])
+  userId      Int
+  event       Event         @relation(fields: [eventId], references: [id])
+  eventId     Int
+  ticketQty   Int
+  totalPrice  Float
+  status      OrderStatus                   //enum type completed/cancelled
+  createdAt   DateTime      @default(now())
+  Transaction Transaction[]
+  OrderItem   OrderItem[]
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Referral {
+  id             Int      @id @default(autoincrement())
+  // Dimodifikasi: Menambahkan relasi referrer dan referredUser
+  referrer       User     @relation("UserReferralsGiven", fields: [referrerId], references: [id])
+  referrerId     Int
+  referredUser   User     @relation("UserReferralsReceived", fields: [referredUserId], references: [id])
+  referredUserId Int
+  pointsEarned   Int      @default(0)
+  expiresAt      DateTime
+  User           User?    @relation(fields: [userId], references: [id])
+  userId         Int?
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  attendee  User     @relation(fields: [userId], references: [id])
+  userId    Int
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   Int
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+}
+
+model Promotion {
+  id           Int      @id @default(autoincrement())
+  event        Event    @relation(fields: [eventId], references: [id])
+  eventId      Int
+  code         String   @unique
+  discountRate Float
+  validUntil   DateTime
+  // Ditambahkan:
+  maxUses      Int
+  currentUses  Int      @default(0)
+}
+
+//adding 
+model PointTransaction {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  points    Int
+  expiresAt DateTime
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model OrderItem {
+  id       Int    @id @default(autoincrement())
+  order    Order  @relation(fields: [orderId], references: [id])
+  orderId  Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+  ticketId Int
+  quantity Int
+  price    Float
+}
+
+model Transaction {
+  id            Int           @id @default(autoincrement())
+  user          User          @relation(fields: [userId], references: [id])
+  userId        Int
+  event         Event         @relation(fields: [eventId], references: [id])
+  eventId       Int
+  order         Order         @relation(fields: [orderId], references: [id])
+  orderId       Int
+  amount        Float
+  paymentMethod String
+  status        PaymentStatus
+  createdAt     DateTime      @default(now())
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model EventCategory {
+  event      Event    @relation(fields: [eventId], references: [id])
+  eventId    Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  @@id([eventId, categoryId])
+}
+
+model Category { 
+  id     Int             @id @default(autoincrement())
+  name   String          @unique
+  events EventCategory[]
+}
